@@ -4,12 +4,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class SimpleAxe extends JavaPlugin {
 	
-	private AxeListener listener;
-	protected static SimpleAxe Instance; 
+	private AxeListener listener; 
 	
 	public SimpleAxe () {
 		listener = new AxeListener();
-		Instance = this;
 	}
 	
 	public void onEnable() {

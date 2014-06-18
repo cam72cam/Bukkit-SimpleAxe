@@ -1,8 +1,8 @@
 package me.cmesh.SimpleAxe;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -12,20 +12,20 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 public class AxeListener implements Listener {
-	
-	public AxeListener() {
-	}
+	//Hack so we don't intercept our own events
+	private static List<UUID> current = new ArrayList<UUID>();
 	
 	private boolean canBreakBlock(ItemStack tool, Block block) {
 		return tool.getMaxStackSize() == 1 && tool.getType().name().contains("AXE") && !block.getDrops(tool).isEmpty();
 	}
 	
-	private int breakAround(ItemStack tool, Location loc) {
+	private int breakAround(Player p, ItemStack tool, Location loc) {
 		int total = 0;
 		loc = loc.add(-1, -1, -1);
 		for (int i = 0; i < 3; i++) {
@@ -36,7 +36,11 @@ public class AxeListener implements Listener {
 					}
 					Block target = loc.clone().add(i, j, k).getBlock();
 					if (canBreakBlock(tool, target) && target.getType() != Material.BEDROCK && target.getType() != Material.PORTAL) {
-						target.breakNaturally(tool);
+						BlockBreakEvent ev = new BlockBreakEvent(target, p);
+						Bukkit.getServer().getPluginManager().callEvent(ev);
+						if (!ev.isCancelled()) {
+							target.breakNaturally(tool);
+						}
 						total++;
 					}
 				}
@@ -45,7 +49,7 @@ public class AxeListener implements Listener {
 		return total;
 	}
 	
-	private boolean breakTree(ItemStack tool, Block block) {
+	private boolean breakTree(Player p, ItemStack tool, Block block) {
 		Material type = block.getType();
 		if (type == Material.LOG || type == Material.LOG_2) {
 			Block up = block.getRelative(BlockFace.UP);
@@ -57,18 +61,22 @@ public class AxeListener implements Listener {
 			};
 			for (BlockFace face : faces) {
 				Block curr = up.getRelative(face);
-				if (!breakTree(tool, curr)) {
+				if (!breakTree(p, tool, curr)) {
 					return false;
 				}
 				curr = up.getRelative(face, 2);
-				if (!breakTree(tool, curr)) {
+				if (!breakTree(p, tool, curr)) {
 					return false;
 				}
 			}
 			if (tool.getDurability() < tool.getType().getMaxDurability()) {
-				int damage = (tool.getDurability() + 1);
-				tool.setDurability((short) damage);
-				block.breakNaturally();
+				BlockBreakEvent ev = new BlockBreakEvent(block, p);
+				Bukkit.getServer().getPluginManager().callEvent(ev);
+				if (!ev.isCancelled()) {
+					int damage = (tool.getDurability() + 1);
+					tool.setDurability((short) damage);
+					block.breakNaturally();
+				}
 				return true;
 			} else {
 				return false;
@@ -123,15 +131,22 @@ public class AxeListener implements Listener {
 	}
 	
 	@EventHandler(priority = EventPriority.LOW)
-	public void onBlockDamage(org.bukkit.event.block.BlockBreakEvent event)
+	public void onBlockDamage(BlockBreakEvent event)
 	{
 		Player player = event.getPlayer();
 		Block block = event.getBlock();
 		ItemStack tool = player.getItemInHand();
+
+		if (current.contains(player.getUniqueId())) {
+			return;
+		}
+		
 		if (canBreakBlock(tool, block)) {
 			if (tool.getType().name().contains("PICK")) {
 				if (isToolActivated(tool)) {
-					int total = breakAround(tool, block.getLocation());
+					current.add(player.getUniqueId());
+					int total = breakAround(player, tool, block.getLocation());
+					current.remove(player.getUniqueId());
 					if (total > 0) {
 						int damage = (player.getItemInHand().getDurability() + total);
 						
@@ -166,9 +181,11 @@ public class AxeListener implements Listener {
 					}
 				}
 			} else {
-				if (!breakTree(tool, block)) {
+				current.add(player.getUniqueId());
+				if (!breakTree(player, tool, block)) {
 					player.setItemInHand(null);
 				}
+				current.remove(player.getUniqueId());
 			}
 		}
 	}
