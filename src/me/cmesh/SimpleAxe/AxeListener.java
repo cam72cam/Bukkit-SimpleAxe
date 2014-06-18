@@ -7,6 +7,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -39,7 +40,12 @@ public class AxeListener implements Listener {
 						BlockBreakEvent ev = new BlockBreakEvent(target, p);
 						Bukkit.getServer().getPluginManager().callEvent(ev);
 						if (!ev.isCancelled()) {
-							target.breakNaturally(tool);
+							if (tool.containsEnchantment(Enchantment.SILK_TOUCH)) {
+								loc.getWorld().dropItemNaturally(target.getLocation(), new ItemStack(target.getType(), 1));
+								target.setType(Material.AIR);
+							} else {
+								target.breakNaturally(tool);
+							}
 						}
 						total++;
 					}
